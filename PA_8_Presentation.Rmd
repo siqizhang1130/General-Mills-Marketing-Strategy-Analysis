@@ -1,0 +1,226 @@
+---
+title: "General Mills Marketing Strategy of Cereal Products"
+author: "Siqi Zhang"
+output: slidy_presentation
+---
+
+```{r echo = FALSE}
+# Course: 5210 Communicating Data
+# Purpose: Show the Marketing Strategy of Cereal Sales
+# Date: November 12, 2019
+# Author: Siqi Zhang
+
+```
+
+```{r echo = FALSE, warning = FALSE}
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+```
+
+```{r echo = FALSE, warning = FALSE, message = FALSE}
+library(tidyverse)
+```
+
+```{r echo = FALSE}
+# Load data
+cereal_sales <-read.csv("mtp_data.csv")
+```
+
+```{r echo = FALSE}
+# Convert integer variables to factor
+cereal_sales$promo <- as.factor(cereal_sales$promo)
+cereal_sales$week <- as.factor(cereal_sales$week)
+
+# Change name of variable levels and add orders for ad variale
+levels(cereal_sales$promo) <- c("No", "Yes")
+levels(cereal_sales$ad) <- c("Medium", "Small", "None")
+cereal_sales$ad <- ordered(cereal_sales$ad, levels = c("None", "Small", "Medium"))
+```
+
+```{r echo = FALSE}
+# Add one more revenue column
+cereal_sales <- mutate(cereal_sales, revenue = price * units)
+
+# Add new column to convert cereal brand by producer
+cereal_sales$producer <- str_sub (cereal_sales$brand, 0, 1)
+cereal_sales$producer <- str_replace_all(cereal_sales$producer, "G", "GENERAL MILLS")
+cereal_sales$producer <- str_replace_all(cereal_sales$producer, "P", "POST")
+cereal_sales$producer <- str_replace_all(cereal_sales$producer, "K", "KELLOGGS")
+cereal_sales$producer <- as.factor(cereal_sales$producer)
+
+```
+
+
+Outline  
+===============================================
+
+<div style="float: left; width: 95%;">
+
++ Introduction of Cereal Sales Analysis
+
+    - Data Introduction
+    - Current Cereal Sales Model
+
++ Specific Marketing Strategy
+
+    - Promotion only
+    - Advertising only
+    - Promotion and Advertising
+
++ Conclusion and Recommendations
+
+    - In store promotion and advertising volume have apparent affect on sales revenue.
+    - Give appropriate promotion discount and apply wise advertising strategy based on different cereal flavors.
+
+</div>
+
+
+Introduction of Cereal Sales Analysis
+===============================================
+
+<div style="float: left; width: 45%;">
+
++ Data Introduction
+
+    - Sample of **21850** observations
+    - Focus on
+        - Producers: **General Mills, Kelloggs, Post**
+        - **Sale Revenue**=(Price*Units)
+        - **Flavor**
+        - **In Store Promotion**
+        - **Advertising Volume**
+    - No bias [use the centrality of numeric data (**median**)]
+
+</div>
+
+<div style="float: left; width: 55%;">
+
++ Current Cereal Sales Model
+
+![](ad_promo_update.png){width=90%}
+
+
+</div>
+
+
+Specific Marketing Strategy 1 -- Promotion Only
+===============================================
+
+<div style="float: left; width: 50%;">
+
+
+![](promo_only.png){width=95%}
+
+</div>
+
+<div style="float: left; width: 50%;">
+
+![](discount_range.png){width=95%}
+
+</div>
+
+
+Specific Marketing Strategy 2 -- Advertising Only
+===================================================
+
+<div style="float: left; width: 50%;">
+
+![](ad_only.png){width=90%}
+
+</div>
+
+<div style="float: left; width: 50%;">
+
+![](ad_flavor_gm.png){width=95%}
+
+</div>
+
+
+Specific Marketing Strategy 3 -- Promotion and Advertising
+=====================================================
+
+<div style="float: left; width: 60%;">
+
+![](ad_promo_gm_upd.png){width=75%}
+
+</div>
+
+<div style="float: left; width: 40%;">
+
+```{r echo = FALSE}
+# max median revenue of GM if promotion only
+promo_max_gm <- cereal_sales %>%
+  filter(ad == "None") %>%
+  group_by(producer, promo) %>%
+  summarise(med_revenue = median(revenue)) %>%
+  filter(med_revenue == max(med_revenue),
+         producer == "GENERAL MILLS") 
+promo_max_value_gm <- round(promo_max_gm$med_revenue, digits = 2)
+
+
+# max median revenue of GM if advertising only
+ads_max_gm <- cereal_sales %>%
+  group_by(producer, ad) %>%
+  summarise(med_revenue = median(revenue)) %>%
+  filter(med_revenue == max(med_revenue),
+         producer == "GENERAL MILLS") 
+
+ads_max_value_gm <- round(ads_max_gm$med_revenue, digits = 2)
+
+# the max value of GM if combining promotion and advertising
+max_gm_rev <- cereal_sales %>%
+  filter(producer == "GENERAL MILLS") %>%
+  group_by(producer, promo, ad) %>%
+  summarise(med_revenue = median(revenue)) %>%
+  filter(med_revenue == max(med_revenue),
+         promo == "Yes",
+         producer == "GENERAL MILLS")
+
+max_gm_rev_value <- max_gm_rev$med_revenue
+
+# Find the max value of competitors
+max_comp_rev <- cereal_sales %>%
+  filter(producer == c("KELLOGGS", "POST")) %>%
+  group_by(producer, promo, ad) %>%
+  summarise(med_revenue = median(revenue)) %>%
+  filter(med_revenue == max(med_revenue),
+         promo == "Yes",
+         producer == "KELLOGGS")
+
+max_comp_rev_value <- max_comp_rev$med_revenue
+```
+
+Compare the maxmium median revenue of General Mills:
+
++ Promotion Only: \$`r promo_max_value_gm`
++ Advertising Only: \$`r ads_max_value_gm`
++ Combine Promotion and Advertising: **\$`r max_gm_rev_value`**
+    
+    - Max medium revenue of **competitors**: **\$`r max_comp_rev_value`**
+
+</div>
+
+
+Conclusion and Recommendations
+================================================
++ Conclusion
+
+    - Promotion and Advertising can help increase our revenue
+        - consistent with our statistical analysis
+        
++ Recommendations
+
+    - If promotion only
+          - giving promotion discount rate **under 42%**
+      
+    - If giving advertising only
+          - giving **small volume advertising** overall, or
+          - giving **no advertising on cocoa**, **small volume advertising** on **cinnamon toast** flavor and **regular** flavor, **medium advertising** on **toasted** flavor
+          
+    - We'd better **combining advertising and promotion together**
+
+(Contact Info: zhangsiqi@seattleu.edu)

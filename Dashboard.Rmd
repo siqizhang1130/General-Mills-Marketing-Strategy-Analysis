@@ -1,0 +1,329 @@
+---
+title: "Sales Strategy of General Mills Cereal"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+---
+
+```{r echo = FALSE}
+# Course: 5210 Communicating Data
+# Purpose: Quick Project 2
+# Date: November 18th, 2019
+# Author: Siqi Zhang
+```
+
+```{r warning = FALSE, echo = FALSE}
+# Clear environment of variables and functions
+rm(list = ls(all = TRUE)) 
+
+# Clear environmet of packages
+if(is.null(sessionInfo()$otherPkgs) == FALSE)lapply(paste("package:", names(sessionInfo()$otherPkgs), sep=""), detach, character.only = TRUE, unload = TRUE)
+
+```
+
+```{r echo = FALSE, warning=FALSE, message=FALSE}
+# Load packages
+library(flexdashboard)
+library(plotly)
+library(tidyverse)
+library(gridExtra)
+library(scales)
+library(ggthemes)
+```
+
+```{r echo = FALSE}
+# Load data
+cereal_sales <-read.csv("mtp_data.csv")
+```
+
+```{r echo = FALSE}
+# Convert integer variables to factor
+cereal_sales$promo <- as.factor(cereal_sales$promo)
+cereal_sales$week <- as.factor(cereal_sales$week)
+
+# Change name of variable levels and add orders for ad variale
+levels(cereal_sales$promo) <- c("No", "Yes")
+levels(cereal_sales$ad) <- c("Medium", "Small", "None")
+cereal_sales$ad <- ordered(cereal_sales$ad, levels = c("None", "Small", "Medium"))
+```
+
+```{r echo = FALSE}
+# Add one more revenue column
+cereal_sales <- mutate(cereal_sales, revenue = price * units)
+
+# Add new column to convert cereal brand by producer
+cereal_sales$producer <- str_sub (cereal_sales$brand, 0, 1)
+cereal_sales$producer <- str_replace_all(cereal_sales$producer, "G", "GENERAL MILLS")
+cereal_sales$producer <- str_replace_all(cereal_sales$producer, "P", "POST")
+cereal_sales$producer <- str_replace_all(cereal_sales$producer, "K", "KELLOGGS")
+cereal_sales$producer <- as.factor(cereal_sales$producer)
+```
+
+
+Row {data-height=540}
+-----------------------------------------------------------------------
+
+### **Outline** {data-width=400}
+
+Why this analysis is necessary??
+
++ 74% cereal sales of us and our competitors have no ads and no promotions
+
+    - good chance to **increase awareness and revenue**
+
+What data we used?? (Sample of **21850** observations)
+
++ Producers: **General Mills, Kelloggs, Post**
++ **Sale Revenue**=(Price*Units)
++ **In Store Promotion**
++ **Advertising Volume**
++ No bias [use the centrality of numeric data (**Median Revenue**)]
+
+Recommendations
+
++ Best Strategy: **combining advertising and promotion together**
++ If promotion only(discount rate **under 42%**)
++ If giving advertising only: small ads overall, or medium ads on toasted, small ads for cinnamon toast and regular flavor, no ads on cocoa
+          
+
+### **Best Strategy: Combining Promotion and Advertising**
+
+```{r}
+# Find the max value of competitors
+max_comp_rev <- cereal_sales %>%
+  filter(producer == c("KELLOGGS", "POST")) %>%
+  group_by(producer, promo, ad) %>%
+  summarise(med_revenue = median(revenue)) %>%
+  filter(med_revenue == max(med_revenue),
+         promo == "Yes",
+         producer == "KELLOGGS")
+
+max_comp_rev_value <- max_comp_rev$med_revenue
+
+# the max value of GM
+max_gm_rev <- cereal_sales %>%
+  filter(producer == "GENERAL MILLS") %>%
+  group_by(producer, promo, ad) %>%
+  summarise(med_revenue = median(revenue)) %>%
+  filter(med_revenue == max(med_revenue),
+         promo == "Yes",
+         producer == "GENERAL MILLS")
+
+max_gm_rev_value <- max_gm_rev$med_revenue
+# For General Mills only
+# Filter the brand of General Mills only
+cereal_sales_GM <- cereal_sales %>%
+  filter(producer == "GENERAL MILLS")
+
+# Calculate the increase rate with and without promotion
+# Assume with different promotion discount, unit incease rate keeps unchanged
+GM_wto_promo <- cereal_sales_GM[cereal_sales_GM$promo == "No",]
+GM_w_promo <- cereal_sales_GM[cereal_sales_GM$promo == "Yes",]
+GM_unit_incrs_rate <- (median(GM_w_promo$units) - median(GM_wto_promo$units))/median(GM_wto_promo$units)
+#GM_unit_incrs_rate
+
+# draw the graph
+ad_promo_gm_upd1 <- cereal_sales %>%
+  filter(producer == "GENERAL MILLS") %>%
+  group_by(producer, ad, promo) %>%
+  summarise(med_revenue = median(revenue))
+
+# rename columns
+names(ad_promo_gm_upd1)[3] <- "promotion"
+names(ad_promo_gm_upd1)[4] <- "median_revenue"
+
+ad_promo_gm_upd2 <- ad_promo_gm_upd1 %>%
+  ggplot(aes(x = ad, y = median_revenue, group = promotion)) +
+  geom_line(aes(color = promotion)) +
+  geom_point() +
+  geom_hline(yintercept = max_comp_rev_value, linetype = 2, color = "black") +
+  ggtitle("How can we beat our competitors??", subtitle = "Combining promotions with advertisements") +
+  labs(x = "Advertising", y = "Median Revenue") +
+  theme_classic() +
+  theme(legend.position = c(0.8, 0.12),
+        legend.title = element_blank()) +
+  annotate("text", x = 2, y = 37.5, label = "Beat the competitors range", color = "black", size = 4) +
+  annotate("text", x = 3.2, y = 35.5, label = "Max median revenue\nof competitors") +
+  scale_color_manual(values = c("#969696", "red")) +
+  scale_y_continuous(label = dollar)
+
+ggplotly(ad_promo_gm_upd2) %>%
+  layout(showlegend = FALSE, title = list(text = paste0('Beat our competitors no matter what strategy they have',
+                                    '<br>',
+                                    '<sup>')))
+```
+
+
+
+
+Row {data-height=460}
+-----------------------------------------------------------------------
+
+### **Alternative Strategy 1: Promotion only can increase revenue** {data-width=400}
+
+```{r}
+promo_only1 <- cereal_sales %>%
+  filter(ad == "None") %>%
+  group_by(promo, producer) %>%
+  summarise(med_revenue = median(revenue))
+
+promo_only2 <- ggplotly(
+  promo_only1 %>%
+  ggplot(aes(x = promo, y = med_revenue, group = producer)) +
+  geom_line(aes(color = producer)) +
+  geom_point() +
+  ggtitle("What if we give promotion only??", subtitle = "Revenue is higher than other competitors") +
+  labs(x = "Promotion", y = "Median Revenue") +
+  theme_classic() +
+  theme(legend.position = "none") +
+  annotate("text", x = 2.2, y = 33, label = "General Mills") +
+  annotate("text", x = 2.15, y = 28, label = "Kelloggs") +
+  annotate("text", x = 2.1, y = 18.5, label = "Post") +
+  scale_color_manual(values = c("red", "#969696", "#969696")) +
+  scale_y_continuous(label = dollar)
+  )
+
+#promo_only2
+
+# Filter the brand of General Mills only
+cereal_sales_GM <- cereal_sales %>%
+  filter(producer == "GENERAL MILLS")
+
+# Calculate the increase rate with and without promotion
+# Assume with different promotion discount, unit incease rate keeps unchanged
+GM_wto_promo <- cereal_sales_GM[cereal_sales_GM$promo == "No",]
+GM_w_promo <- cereal_sales_GM[cereal_sales_GM$promo == "Yes",]
+GM_unit_incrs_rate <- (median(GM_w_promo$units) - median(GM_wto_promo$units))/median(GM_wto_promo$units)
+#GM_unit_incrs_rate
+
+# Change column names
+names(GM_wto_promo)[4] <- "units_wto_promo"
+names(GM_wto_promo)[9] <- "price_wto_promo"
+names(GM_wto_promo)[12] <- "revenue_wto_promo"
+
+# Compare the revenue with different price promotion and without the promotion based on same units and same median sale price without promotion
+gm_promo_compare <- function(discount_rate) {
+  
+  GM_promo_compare <- GM_wto_promo %>%
+    filter(ad == "None") %>%
+    select(producer, units_wto_promo, price_wto_promo, revenue_wto_promo) %>%
+    mutate(units_w_promo = units_wto_promo * (1 + GM_unit_incrs_rate),
+           price_w_promo = price_wto_promo * (1 - discount_rate),
+           revenue_w_promo = units_w_promo * price_w_promo)
+  
+  GM_promo_npct <- GM_promo_compare %>%
+    group_by(producer) %>%
+    summarise(med_uni_wto_pro = median(units_wto_promo),
+              med_pri_wto_pro = median(price_wto_promo),
+              med_rev_wto_pro = median(revenue_wto_promo),
+              med_uni_w_pro = median(units_w_promo),
+              med_pri_w_pro = median(price_w_promo),
+              med_rev_w_pro = median(revenue_w_promo)) %>%
+    select(producer, med_rev_wto_pro, med_rev_w_pro) %>%
+    mutate(discount_rate = discount_rate)
+  
+  return(GM_promo_npct)
+}
+
+
+result <- gm_promo_compare(0.05)
+discount_rates <- seq(0.06,0.6, by = 0.01)
+for (rate in discount_rates)
+{
+  result <- rbind(result, gm_promo_compare(rate))
+}
+
+# change column name of new graph
+names(result)[2] <- "without promotion"
+names(result)[3] <- "with promotion"
+
+
+discount_range1 <- result %>%
+  gather(`without promotion`, `with promotion`, key = "promo", value = "med_revenue")
+
+# change name for promo column
+names(discount_range1)[3] <- "promotion"
+names(discount_range1)[4] <- "median_revenue"
+
+discount_range2 <- ggplotly(discount_range1 %>%
+  ggplot(aes(x = discount_rate, y = median_revenue, color = promotion)) +
+  geom_line() +
+  geom_vline(xintercept = 0.419, linetype = 2, color = "gray") +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) +
+  labs(x = "Discount Rate", y = "Median Revenue", color = "Promotion") +
+  annotate("text", x = 0.15, y = 35, label = "Earn Money", color = "black", size = 3) +
+  annotate("text", x = 0.56, y = 27, label = "Lose Money", color = "black", size = 3) +
+  scale_color_manual(values = c("red", "#969696"), labels = c("With Promotion", "Without Promotion"))) %>%
+  layout(showlegend = FALSE)
+
+#discount_range2
+
+subplot(promo_only2 ,discount_range2) %>%
+  layout(title = list(text = paste0('Promotion discount rate should be under 42%',
+                                    '<br>',
+                                    '<sup>')))
+```
+
+### **Alternative Strategy 2: Advertising only can increase revenue** {data-width=400}
+```{r}
+ad_only1 <- cereal_sales %>%
+  filter(promo == "No") %>%
+  group_by(ad, producer) %>%
+  summarise(med_revenue = median(revenue))
+
+# rename the column
+names(ad_only1)[3] <- "median_revenue"
+
+
+ad_only2 <- ggplotly(
+  ad_only1 %>%
+  ggplot(aes(x = ad, y = median_revenue, group = producer)) +
+  geom_line(aes(color = producer)) +
+  geom_point() +
+  ggtitle("Medium ads for toasted and cocoa") +
+  labs(x = "Advertising", y = "Median Revenue") +
+  theme_classic() +
+  theme(legend.position = "none") +
+  annotate("text", x = 3.2, y = 33, label = "General Mills") +
+  annotate("text", x = 3.2, y = 24.5, label = "Kelloggs") +
+  annotate("text", x = 3.13, y = 14.5, label = "Post") +
+  scale_color_manual(values = c("red", "#969696", "#969696")) +
+  scale_y_continuous(label = dollar))
+
+#ad_only2
+
+# on each flavor
+ad_flavor_gm1 <- cereal_sales %>%
+  filter(producer == "GENERAL MILLS") %>%
+  filter(promo == "No") %>%
+  group_by(ad, flavor) %>%
+  summarise(med_revenue = median(revenue))
+
+ad_flavor_gm2 <- ggplotly(
+  ad_flavor_gm1 %>%
+  ggplot(mapping = aes(x = ad, y = med_revenue, group = flavor)) +
+  geom_line(aes(color = flavor)) +
+  geom_point() +
+  theme_classic() +
+  theme(axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank()) +
+  theme(legend.position='none') +
+  annotate("text", x = 3.15, y = 40.5, label = "Toasted") +
+  annotate("text", x = 3.1, y = 29, label = "Cinnamon\ntoast") +
+  annotate("text", x = 3.16, y = 21.5, label = "Regular") +
+  annotate("text", x = 3.15, y = 16, label = "Cocoa") +
+  scale_y_continuous(label = dollar) +
+  scale_color_manual(values = c("black", "black", "black", "black")))
+
+#ad_flavor_gm2
+
+subplot(ad_only2, ad_flavor_gm2) %>%
+  layout(title = list(text = paste0('Median revenue after giving advertising',
+                                    '<br>',
+                                    '<sup>')))
+```
+
